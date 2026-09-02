@@ -1,0 +1,9 @@
+{
+  "name": "lifecompass",
+  "version": "3.2.5",
+  "private": true,
+  "description": "人生羅盤 LifeCompass - Netlify 部署套件",
+  "dependencies": {
+    "@netlify/blobs": "*"
+  }
+}

@@ -1,0 +1,9 @@
+# v3.2.1 新增：Netlify 部署設定檔。
+# 這個檔案告訴 Netlify：
+# 1. 網站要發布的檔案在根目錄（也就是 index.html 所在的地方）
+# 2. 後端小程式（Functions）放在 netlify/functions 這個資料夾裡
+# 不需要修改這個檔案的任何內容。
+
+[build]
+  publish = "."
+  functions = "netlify/functions"

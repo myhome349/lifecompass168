@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>人生羅盤 LifeCompass v3.2.4</title>
+<title>人生羅盤 LifeCompass v3.2.6</title>
 <style>
 :root {
   --bg: #FFF8EC; --surface: #FFFFFF; --surface-light: #FFF3DC; --border: #F0DEB8;
@@ -435,7 +435,7 @@ textarea.ai-form-ctrl { resize: vertical; min-height: 90px; font-family: inherit
         <div style="min-width:0;">
         <div class="wrap-brand-name-row" style="display:flex;align-items:baseline;gap:6px;min-width:0;">
             <div class="name">人生羅盤 LifeCompass</div>
-            <span class="brand-version" style="font-size:10.5px;color:var(--faint);font-weight:600;white-space:nowrap;">v3.2.4</span>
+            <span class="brand-version" style="font-size:10.5px;color:var(--faint);font-weight:600;white-space:nowrap;">v3.2.6</span>
           </div>
           <div class="tag">找到方向，也聽懂話裡的話</div>
         </div>
@@ -639,11 +639,19 @@ textarea.ai-form-ctrl { resize: vertical; min-height: 90px; font-family: inherit
     <!-- v3.2.2 新增：登入紀錄（管理者專用）。這個選單項目所有登入的使用者都看得到、
          可以點，但實際能不能看到內容是由後端 netlify/functions/login-logs.js
          依 Netlify 環境變數 ADMIN_EMAILS 判斷；不是管理者的帳號點進來只會看到
-         「沒有權限」的提示，不會看到任何其他使用者的資料。 -->
-    <button class="nav-single" data-nav-section="adminloginlog" onclick="goSection('adminloginlog')" title="管理者專用：查看使用者登入紀錄"><span aria-hidden="true">🔐</span><span class="lbl">登入紀錄</span></button>
+         「沒有權限」的提示，不會看到任何其他使用者的資料。
+         v3.2.6 修改：改成預設隱藏（style="display:none"），只有登入帳號 email
+         符合前端 FRONTEND_ADMIN_EMAIL 常數時才會顯示（見頁尾 script 裡的
+         updateAdminNavVisibility）。這一層只是「不讓非管理者在選單上看到入口」
+         的畫面體驗優化，不是安全機制本身——前端程式碼本來就對使用者完全透明、
+         可以被看到或繞過，真正的權限判斷仍然只靠後端比對 ADMIN_EMAILS，跟這裡
+         的顯示/隱藏無關，就算有人手動把按鈕顯示出來或直接呼叫 API，沒有權限
+         一樣會被後端拒絕、拿不到任何資料。 -->
+    <button class="nav-single" id="nav-adminloginlog-btn" data-nav-section="adminloginlog" onclick="goSection('adminloginlog')" title="管理者專用：查看使用者登入紀錄" style="display:none;"><span aria-hidden="true">🔐</span><span class="lbl">登入紀錄</span></button>
     <!-- v3.2.5 新增：使用者資料（管理者專用）。跟登入紀錄選單同樣所有登入的人都看得到
-         選單項目、都能點進去，但只有 ADMIN_EMAILS 名單內的信箱才看得到實際內容。 -->
-    <button class="nav-single" data-nav-section="adminuserdata" onclick="goSection('adminuserdata')" title="管理者專用：查看所有使用者的測驗與打卡資料"><span aria-hidden="true">👥</span><span class="lbl">使用者資料</span></button>
+         選單項目、都能點進去，但只有 ADMIN_EMAILS 名單內的信箱才看得到實際內容。
+         v3.2.6 修改：同上，預設隱藏，只有管理者信箱登入後才顯示。 -->
+    <button class="nav-single" id="nav-adminuserdata-btn" data-nav-section="adminuserdata" onclick="goSection('adminuserdata')" title="管理者專用：查看所有使用者的測驗與打卡資料" style="display:none;"><span aria-hidden="true">👥</span><span class="lbl">使用者資料</span></button>
   </nav>
 
   <main class="content-area" id="app" tabindex="-1"></main>
@@ -1952,7 +1960,7 @@ function findAbcPatternCluster(entries) {
    v0.5.4 UI 渲染層（純 vanilla JS，無框架依賴，單一HTML檔可離線開啟）
 =========================================================== */
 
-const APP_VERSION = "v3.2.5";
+const APP_VERSION = "v3.2.6";
 /* v2.9 側邊選單重新排序（依《LifeCompass_側邊選單重新排序提案_v2.7.md》Option A 執行，
    使用者要求「重新排列將重要由上到下排序，讓使用者易懂明白為主」）：
    ①【DOM 排序】選單一級區塊從原本「首頁／打卡／人生羅盤／核心價值觀／依戀類型測驗／
@@ -5993,6 +6001,27 @@ if (typeof refreshAiStatusUi === "function") refreshAiStatusUi();
   var loadingMsg = document.getElementById("gate-loading-msg");
   var logoutBtn = document.getElementById("logout-btn");
 
+  /* v3.2.6 新增：只有這個信箱登入時，側邊選單才會顯示「登入紀錄」「使用者資料」
+     這兩個管理者專用入口。如果之後要新增/更換管理者，改這裡即可（可以填多個，
+     用逗號分隔，例如 "felix670131@gmail.com,other@gmail.com"）。
+     再次強調：這只是「選單看不看得到」的畫面體驗，跟後端真正的權限判斷
+     （Netlify 環境變數 ADMIN_EMAILS）是各自獨立的兩件事——這裡改了，
+     不會影響、也不能取代後端的權限判斷；後端沒設定或設定不同的信箱，
+     就算前端顯示了選單，點進去一樣會被後端拒絕。兩邊要放同一個信箱，
+     才會「畫面上看得到、點進去也看得到內容」。 */
+  var FRONTEND_ADMIN_EMAILS = ["felix670131@gmail.com"];
+
+  function updateAdminNavVisibility(user) {
+    var email = (user && user.email) ? user.email.toLowerCase() : "";
+    var isAdmin = !!email && FRONTEND_ADMIN_EMAILS.indexOf(email) !== -1;
+    var loginLogBtn = document.getElementById("nav-adminloginlog-btn");
+    var userDataBtn = document.getElementById("nav-adminuserdata-btn");
+    if (loginLogBtn) loginLogBtn.style.display = isAdmin ? "" : "none";
+    if (userDataBtn) userDataBtn.style.display = isAdmin ? "" : "none";
+  }
+  // 給主程式（goSection 等）在需要時也能重新檢查一次，例如手動刷新畫面時。
+  window.__lcUpdateAdminNavVisibility = updateAdminNavVisibility;
+
   function openApp(user) {
     document.body.classList.remove("gate-open");
     if (gateEl) gateEl.style.display = "none";
@@ -6014,6 +6043,7 @@ if (typeof refreshAiStatusUi === "function") refreshAiStatusUi();
       window.__lcUserName = name;
     }
     if (chip && window.__lcUserName) chip.textContent = "你好，" + window.__lcUserName;
+    updateAdminNavVisibility(user);
     recordLoginOnce(user);
   }
 

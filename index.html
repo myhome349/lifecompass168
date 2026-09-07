@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>人生羅盤 LifeCompass v3.2.9</title>
+<title>人生羅盤 LifeCompass v3.3.3</title>
 <style>
 :root {
   --bg: #FFF8EC; --surface: #FFFFFF; --surface-light: #FFF3DC; --border: #F0DEB8;
@@ -339,6 +339,30 @@ body.gate-open .topbar, body.gate-open .body-shell { visibility: hidden; }
 .ai-status-btn.on .dot { background: var(--teal); box-shadow: 0 0 6px rgba(20,184,179,0.6); }
 .ai-status-btn:hover { border-color: var(--gold); }
 
+/* v3.3.2 新增：頂欄「後台管理」按鈕＋下拉選單，樣式沿用 .ai-status-btn 的
+   底色與邊框，維持跟站內其他頂欄按鈕一致的視覺語言；下拉選單則參考
+   .admin-modal-box 的卡片陰影樣式。 */
+.admin-nav-wrap { position: relative; margin-left: 8px; }
+.admin-nav-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--gold-light);
+  border-radius: 8px; padding: 6px 12px; font-size: 11.5px; font-family: inherit;
+  font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.admin-nav-btn:hover { border-color: var(--gold); background: var(--surface-light); }
+.admin-nav-menu {
+  display: none; flex-direction: column; gap: 2px;
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 640;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(60,42,20,0.15); padding: 6px; min-width: 168px;
+}
+.admin-nav-menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: transparent; border: none; border-radius: 6px; padding: 8px 10px;
+  font-size: 12.5px; font-family: inherit; color: var(--text); cursor: pointer;
+}
+.admin-nav-menu button:hover { background: var(--surface-light); }
+
 #ai-modal-overlay, #confirm-modal-overlay {
   position: fixed; inset: 0; z-index: 600; display: none;
   align-items: center; justify-content: center; padding: 20px;
@@ -389,6 +413,15 @@ body.gate-open .topbar, body.gate-open .body-shell { visibility: hidden; }
   background: rgba(42,33,64,0.5); backdrop-filter: blur(3px);
 }
 #admin-modal-overlay.open { display: flex; }
+/* v3.3.2 新增：見下方 HTML 裡 #admin-panel-overlay 的說明註解——跟上面
+   #admin-modal-overlay 共用 .admin-modal-box 的視窗外觀，只有 z-index 較低，
+   確保單一使用者詳細內容視窗一定蓋在這個視窗之上。 */
+#admin-panel-overlay {
+  position: fixed; inset: 0; z-index: 645; display: none;
+  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(42,33,64,0.5); backdrop-filter: blur(3px);
+}
+#admin-panel-overlay.open { display: flex; }
 .admin-modal-box {
   background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
   padding: 20px 22px 18px; box-shadow: 0 20px 60px rgba(60,42,20,0.2);
@@ -461,7 +494,7 @@ textarea.ai-form-ctrl { resize: vertical; min-height: 90px; font-family: inherit
         <div style="min-width:0;">
         <div class="wrap-brand-name-row" style="display:flex;align-items:baseline;gap:6px;min-width:0;">
             <div class="name">人生羅盤 LifeCompass</div>
-            <span class="brand-version" style="font-size:10.5px;color:var(--faint);font-weight:600;white-space:nowrap;">v3.2.9</span>
+            <span class="brand-version" id="brand-version-tag" style="font-size:10.5px;color:var(--faint);font-weight:600;white-space:nowrap;">v3.3.3</span>
           </div>
           <div class="tag">找到方向，也聽懂話裡的話</div>
         </div>
@@ -470,6 +503,21 @@ textarea.ai-form-ctrl { resize: vertical; min-height: 90px; font-family: inherit
     <div class="user-chip"><div class="avatar" aria-hidden="true"></div>
       <span class="u-text-full" id="user-chip-text">你好，訪客 · 探索進度載入中</span>
       <span class="u-text-short" id="user-chip-text-short">0/13</span>
+    </div>
+    <!-- v3.3.2 新增：管理者後台入口，原本「登入紀錄／使用者資料／操作紀錄」
+         三個項目常駐在側邊選單，改成頂欄這一個「後台管理」按鈕，點了才展開
+         選單；一般使用者從頭到尾看不到這個按鈕（預設 display:none，只有
+         FRONTEND_ADMIN_EMAILS 名單內的信箱登入後，見下方 updateAdminNavVisibility，
+         才會顯示）。 -->
+    <div class="admin-nav-wrap" id="admin-nav-wrap" style="display:none;">
+      <button class="admin-nav-btn" id="admin-nav-btn" onclick="toggleAdminNavMenu()" aria-haspopup="true" aria-expanded="false">
+        <span aria-hidden="true">🛠️</span><span>後台管理</span>
+      </button>
+      <div class="admin-nav-menu" id="admin-nav-menu">
+        <button onclick="openAdminPanel('adminloginlog')"><span aria-hidden="true">🔐</span> 登入紀錄</button>
+        <button onclick="openAdminPanel('adminuserdata')"><span aria-hidden="true">👥</span> 使用者資料</button>
+        <button onclick="openAdminPanel('adminauditlog')"><span aria-hidden="true">📋</span> 操作紀錄</button>
+      </div>
     </div>
     <!-- v2.6 新增：AI 設定按鈕，隨時可點，顯示目前是否已啟用某個 AI 供應商 -->
     <button class="ai-status-btn" id="ai-status-btn" onclick="openAiModal()"><span class="dot" id="ai-status-dot"></span><span id="ai-status-text">AI 設定</span></button>
@@ -579,6 +627,23 @@ textarea.ai-form-ctrl { resize: vertical; min-height: 90px; font-family: inherit
   </div>
 </div>
 
+<!-- v3.3.2 新增：管理者後台「登入紀錄／使用者資料／操作紀錄」三個頁面共用的
+     彈出視窗。跟上面 #admin-modal-overlay（單一使用者詳細內容用）是兩個
+     獨立的視窗，z-index 刻意設得比它低（見樣式 #admin-panel-overlay），
+     這樣「使用者資料」清單裡點「瀏覽」跳出的詳細內容視窗，才會蓋在這個
+     視窗上面，兩層視窗不會互相搶畫面。同樣沿用 .admin-modal-box，
+     resize:both，管理者可以自行拖曳右下角調整大小。 -->
+<div id="admin-panel-overlay">
+  <div class="admin-modal-box">
+    <div class="admin-modal-head">
+      <h3 id="admin-panel-title">後台管理</h3>
+      <button class="admin-modal-close" onclick="closeAdminPanel()" aria-label="關閉">✕</button>
+    </div>
+    <div class="admin-modal-body" id="admin-panel-body"></div>
+    <p class="admin-modal-hint">拖曳視窗右下角可調整大小</p>
+  </div>
+</div>
+
 <div class="body-shell">
   <nav class="sidebar" id="sidebar" aria-label="主要選單">
     <div class="sidebar-toggle-row">
@@ -678,28 +743,14 @@ textarea.ai-form-ctrl { resize: vertical; min-height: 90px; font-family: inherit
 
     <button class="nav-single" data-nav-section="teampulse" onclick="goSection('teampulse')" title="企業／團隊 MVP：去識別化聚合的團隊幸福感總覽"><span aria-hidden="true">🏢</span><span class="lbl">團隊脈動（企業版）</span></button>
 
-    <!-- v3.2.2 新增：登入紀錄（管理者專用）。這個選單項目所有登入的使用者都看得到、
-         可以點，但實際能不能看到內容是由後端 netlify/functions/login-logs.js
-         依 Netlify 環境變數 ADMIN_EMAILS 判斷；不是管理者的帳號點進來只會看到
-         「沒有權限」的提示，不會看到任何其他使用者的資料。
-         v3.2.6 修改：改成預設隱藏（style="display:none"），只有登入帳號 email
-         符合前端 FRONTEND_ADMIN_EMAIL 常數時才會顯示（見頁尾 script 裡的
-         updateAdminNavVisibility）。這一層只是「不讓非管理者在選單上看到入口」
-         的畫面體驗優化，不是安全機制本身——前端程式碼本來就對使用者完全透明、
-         可以被看到或繞過，真正的權限判斷仍然只靠後端比對 ADMIN_EMAILS，跟這裡
-         的顯示/隱藏無關，就算有人手動把按鈕顯示出來或直接呼叫 API，沒有權限
-         一樣會被後端拒絕、拿不到任何資料。 -->
-    <button class="nav-single" id="nav-adminloginlog-btn" data-nav-section="adminloginlog" onclick="goSection('adminloginlog')" title="管理者專用：查看使用者登入紀錄" style="display:none;"><span aria-hidden="true">🔐</span><span class="lbl">登入紀錄</span></button>
-    <!-- v3.2.5 新增：使用者資料（管理者專用）。跟登入紀錄選單同樣所有登入的人都看得到
-         選單項目、都能點進去，但只有 ADMIN_EMAILS 名單內的信箱才看得到實際內容。
-         v3.2.6 修改：同上，預設隱藏，只有管理者信箱登入後才顯示。 -->
-    <button class="nav-single" id="nav-adminuserdata-btn" data-nav-section="adminuserdata" onclick="goSection('adminuserdata')" title="管理者專用：查看所有使用者的測驗與打卡資料" style="display:none;"><span aria-hidden="true">👥</span><span class="lbl">使用者資料</span></button>
-    <!-- v3.2.9 新增：操作紀錄（管理者專用）。不論使用者有無登入 Google 帳號都會
-         記錄的足跡（姓名／信箱／IP／瀏覽器／瀏覽下載刪除等操作），資料來源是
-         netlify/functions/audit-log.js，權限判斷方式跟上面兩個管理者專用選單
-         完全一樣（依 ADMIN_EMAILS 環境變數），前端這裡同樣預設隱藏、不會讓
-         一般使用者在選單上看到入口。 -->
-    <button class="nav-single" id="nav-adminauditlog-btn" data-nav-section="adminauditlog" onclick="goSection('adminauditlog')" title="管理者專用：查看所有操作足跡紀錄（含未登入訪客）" style="display:none;"><span aria-hidden="true">📋</span><span class="lbl">操作紀錄</span></button>
+    <!-- v3.2.2～v3.2.9：登入紀錄／使用者資料／操作紀錄（管理者專用）原本是這裡
+         三個常駐的側邊選單項目，預設隱藏、只有管理者信箱登入後才顯示。
+         v3.3.2 改版：搬到頂欄「後台管理」下拉選單（見 <header class="topbar">
+         裡的 #admin-nav-wrap），點了才展開三個選項，選了才用可調整大小的
+         彈出視窗顯示內容（見 #admin-panel-overlay／openAdminPanel）。這裡
+         不再放這三個按鈕；權限判斷邏輯（前端 FRONTEND_ADMIN_EMAILS 只影響
+         看不看得到入口、後端 ADMIN_EMAILS 才是真正的權限控管）完全沒變，
+         只是入口位置和呈現方式改了。 -->
   </nav>
 
   <main class="content-area" id="app" tabindex="-1"></main>
@@ -2015,7 +2066,19 @@ function findAbcPatternCluster(entries) {
    v0.5.4 UI 渲染層（純 vanilla JS，無框架依賴，單一HTML檔可離線開啟）
 =========================================================== */
 
-const APP_VERSION = "v3.3.1";
+const APP_VERSION = "v3.3.3";
+/* v3.3.2 缺失修復：<title> 和左上角品牌旁的版本號（.brand-version）先前是
+   寫死在 HTML 裡的固定文字，跟這裡的 APP_VERSION 常數是兩份各自獨立的資料，
+   每次改版號時很容易漏改其中一處，造成「總覽頁顯示新版號、但頁籤標題或
+   左上角仍是舊版號」的不一致（本次修復前即是如此：HTML 寫死 v3.2.9，
+   APP_VERSION 已經是 v3.3.1）。修復方式：頁面載入時，統一從 APP_VERSION
+   這唯一一份資料來源，同步寫回 <title> 和左上角的版本號，之後只需要改上面
+   這一行 APP_VERSION，其餘顯示位置都會自動跟著更新，不會再各自漏改。 */
+(function syncVersionDisplays() {
+  document.title = "人生羅盤 LifeCompass " + APP_VERSION;
+  var tag = document.getElementById("brand-version-tag");
+  if (tag) tag.textContent = APP_VERSION;
+})();
 /* ===========================================================
    v3.3.1 缺失修復（本次更新重點）：
    ①「教練回饋統計」重複計算：state.coach.votedKeys 只存在記憶體，重新整理
@@ -2485,6 +2548,67 @@ function closeAdminModal() {
   if (overlay) overlay.classList.remove("open");
 }
 
+/* v3.3.2 新增：管理者後台的「登入紀錄／使用者資料／操作紀錄」三個頁面，改成
+   從頂欄「後台管理」下拉選單點選後，用另一個獨立的可調整大小彈出視窗
+   （#admin-panel-overlay，跟上面單一使用者詳細內容用的 #admin-modal-overlay
+   是兩個不同的視窗、z-index 較低，避免「使用者資料」頁面裡的「瀏覽」按鈕
+   跳出的詳細內容視窗被這個視窗擋住或蓋掉），呈現方式沿用同一套
+   .admin-modal-box（resize:both，可自行拖曳右下角調整大小）。
+   ADMIN_PANEL_TITLES：三個管理頁面對應的視窗標題文字。 */
+const ADMIN_PANEL_TITLES = {
+  adminloginlog: "🔐 登入紀錄",
+  adminuserdata: "👥 使用者資料",
+  adminauditlog: "📋 操作紀錄",
+};
+
+function openAdminPanel(sec) {
+  state.adminModalSection = sec;
+  toggleAdminNavMenu(false);
+  const overlay = document.getElementById("admin-panel-overlay");
+  if (overlay) overlay.classList.add("open");
+  refreshAdminPanelContent();
+}
+
+function closeAdminPanel() {
+  state.adminModalSection = null;
+  const overlay = document.getElementById("admin-panel-overlay");
+  if (overlay) overlay.classList.remove("open");
+}
+
+/* 視窗開著的時候，把對應管理頁面的最新內容（含載入中／錯誤／資料表格等狀態）
+   同步寫進視窗；沿用既有的 viewAdminLoginLogSection／viewAdminUserDataSection／
+   viewAdminAuditLogSection，這三個函式原本就會在資料還沒載入時自動觸發
+   loadAdminXxx()，行為完全不用改，只是改成填進這個視窗而不是頁面主要內容區。 */
+function refreshAdminPanelContent() {
+  const sec = state.adminModalSection;
+  if (!sec) return;
+  const titleEl = document.getElementById("admin-panel-title");
+  const bodyEl = document.getElementById("admin-panel-body");
+  if (!bodyEl) return;
+  let html;
+  if (sec === "adminloginlog") html = viewAdminLoginLogSection();
+  else if (sec === "adminuserdata") html = viewAdminUserDataSection();
+  else if (sec === "adminauditlog") html = viewAdminAuditLogSection();
+  else return;
+  if (titleEl) titleEl.textContent = ADMIN_PANEL_TITLES[sec] || "後台管理";
+  bodyEl.innerHTML = html;
+}
+
+/* 頂欄「後台管理」按鈕的下拉選單開關；點選單外任何地方會自動收合
+   （見頁面下方登入擋板腳本裡註冊的 document click 監聽）。 */
+function toggleAdminNavMenu(forceState) {
+  const menu = document.getElementById("admin-nav-menu");
+  const btn = document.getElementById("admin-nav-btn");
+  if (!menu) return;
+  const willOpen = typeof forceState === "boolean" ? forceState : menu.style.display !== "flex";
+  menu.style.display = willOpen ? "flex" : "none";
+  if (btn) btn.setAttribute("aria-expanded", String(willOpen));
+}
+document.addEventListener("click", function (e) {
+  const wrap = document.getElementById("admin-nav-wrap");
+  if (wrap && !wrap.contains(e.target)) toggleAdminNavMenu(false);
+});
+
 /* v1.0.9 缺失修復④：重新生成 AI 草稿前，若已有內容（可能是使用者手動編輯過），先跟使用者確認再覆蓋。
    v2.9.7：改用 appConfirm()（自訂彈窗）取代原生 confirm()，理由見上方 #confirm-modal-overlay 註解。 */
 async function confirmOverwrite(existingText) {
@@ -2809,6 +2933,11 @@ const state = {
      記錄不論使用者有無登入 Google 帳號都會留下的足跡（中文姓名／信箱／IP／瀏覽器／
      瀏覽或下載或刪除資料等操作），供未來排查問題（查 bug）使用。 */
   adminAuditLog: { loading: false, loaded: false, error: "", records: null, totalCount: 0 },
+  /* v3.3.2 新增：管理者後台從側邊選單的三個常駐項目，改成頂欄單一「後台管理」
+     按鈕＋下拉選單，選了其中一項才會在可調整大小的彈出視窗裡顯示。這裡記錄
+     「目前視窗裡開的是哪一個管理頁面」，null 代表視窗沒開；見 openAdminPanel／
+     closeAdminPanel／refreshAdminPanelContent。 */
+  adminModalSection: null,
   /* v1.3.6 Phase 2 新增：企業／團隊 MVP（去識別化聚合，Beta） */
   teampulse: {
     teamCodeInput: "", teamCode: "", consentChecked: false,
@@ -2857,6 +2986,10 @@ function rerender() {
     }
     document.getElementById("app").innerHTML = viewRoot();
     if (typeof syncChrome === "function") syncChrome();
+    /* v3.3.2 新增：如果管理者後台視窗目前是開著的，每次 rerender()（例如
+       loadAdminLoginLog／loadAdminUserData／loadAdminAuditLog 讀取完資料後）
+       都順便把視窗內容同步更新，不用另外處理。視窗沒開的時候這裡會直接跳過。 */
+    if (typeof refreshAdminPanelContent === "function") refreshAdminPanelContent();
     window.scrollTo(0, scrollY);
     if (focusId) {
       const el = document.querySelector('[data-focus-id="' + focusId + '"]');
@@ -6392,12 +6525,14 @@ if (typeof refreshAiStatusUi === "function") refreshAiStatusUi();
        避免明明信箱相同卻因為多一個空白就判斷失敗。 */
     var email = (user && user.email) ? String(user.email).trim().toLowerCase() : "";
     var isAdmin = !!email && FRONTEND_ADMIN_EMAILS.indexOf(email) !== -1;
-    var loginLogBtn = document.getElementById("nav-adminloginlog-btn");
-    var userDataBtn = document.getElementById("nav-adminuserdata-btn");
-    var auditLogBtn = document.getElementById("nav-adminauditlog-btn");
-    if (loginLogBtn) loginLogBtn.style.display = isAdmin ? "" : "none";
-    if (userDataBtn) userDataBtn.style.display = isAdmin ? "" : "none";
-    if (auditLogBtn) auditLogBtn.style.display = isAdmin ? "" : "none";
+    /* v3.3.2 修改：原本這裡分別控制三個側邊選單按鈕的顯示/隱藏，改版後
+       三個入口收進頂欄「後台管理」下拉選單裡，只需要控制外層的
+       #admin-nav-wrap 一個元素；不是管理者時連同下拉選單一起強制收合，
+       避免帳號被登出、選單卻還開著的畫面殘留。 */
+    var adminNavWrap = document.getElementById("admin-nav-wrap");
+    if (adminNavWrap) adminNavWrap.style.display = isAdmin ? "" : "none";
+    if (!isAdmin && typeof toggleAdminNavMenu === "function") toggleAdminNavMenu(false);
+    if (!isAdmin && typeof closeAdminPanel === "function") closeAdminPanel();
     /* v3.2.8 新增：只印在瀏覽器主控台（一般使用者不會打開，不影響體驗），
        之後如果又遇到「登入了但選單沒顯示」，管理者自己按 F12 開 Console
        就能立刻看到程式實際拿到的信箱、跟名單比對的結果，不用再靠猜的。 */

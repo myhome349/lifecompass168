@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>人生羅盤 LifeCompass v3.2.6</title>
+<title>人生羅盤 LifeCompass v3.2.9</title>
 <style>
 :root {
   --bg: #FFF8EC; --surface: #FFFFFF; --surface-light: #FFF3DC; --border: #F0DEB8;
@@ -378,6 +378,32 @@ body.gate-open .topbar, body.gate-open .body-shell { visibility: hidden; }
 .ai-toast.success { border-color: var(--teal); }
 .ai-toast.warning { border-color: #C9A227; }
 
+/* v3.2.9 新增：管理者後台專用的「可調整大小」彈出視窗。跟 #ai-modal-overlay／
+   #confirm-modal-overlay 共用同一套遮罩＋置中版型，差別在於內層的
+   .admin-modal-box 加了 resize:both（瀏覽器原生的右下角拖曳把手），管理者
+   可以自行把視窗拉大拉小，方便看比較長的 JSON 資料內容；一般使用者不會
+   接觸到這個彈窗（只有管理者專用頁面才會呼叫），不影響其他人的操作體驗。 */
+#admin-modal-overlay {
+  position: fixed; inset: 0; z-index: 650; display: none;
+  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(42,33,64,0.5); backdrop-filter: blur(3px);
+}
+#admin-modal-overlay.open { display: flex; }
+.admin-modal-box {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 20px 22px 18px; box-shadow: 0 20px 60px rgba(60,42,20,0.2);
+  width: 680px; height: 520px; max-width: 96vw; max-height: 92vh;
+  min-width: 320px; min-height: 220px;
+  resize: both; overflow: auto;
+  display: flex; flex-direction: column;
+}
+.admin-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-shrink: 0; }
+.admin-modal-head h3 { font-family: 'Noto Serif TC', Georgia, serif; font-size: 16.5px; color: var(--gold-light); margin: 0; }
+.admin-modal-close { background: none; border: none; font-size: 18px; color: var(--faint); cursor: pointer; padding: 4px 8px; flex-shrink: 0; }
+.admin-modal-close:hover { color: var(--text); }
+.admin-modal-body { flex: 1; overflow: auto; font-size: 12px; }
+.admin-modal-hint { font-size: 10.5px; color: var(--faint); margin: 8px 0 0; flex-shrink: 0; text-align: right; }
+
 /* v2.9.4：全站底部固定資訊列＋回報視窗，沿用 #ai-modal-overlay 的浮層樣式規則 */
 .site-footer {
   border-top: 1px solid var(--border);
@@ -435,7 +461,7 @@ textarea.ai-form-ctrl { resize: vertical; min-height: 90px; font-family: inherit
         <div style="min-width:0;">
         <div class="wrap-brand-name-row" style="display:flex;align-items:baseline;gap:6px;min-width:0;">
             <div class="name">人生羅盤 LifeCompass</div>
-            <span class="brand-version" style="font-size:10.5px;color:var(--faint);font-weight:600;white-space:nowrap;">v3.2.6</span>
+            <span class="brand-version" style="font-size:10.5px;color:var(--faint);font-weight:600;white-space:nowrap;">v3.2.9</span>
           </div>
           <div class="tag">找到方向，也聽懂話裡的話</div>
         </div>
@@ -534,6 +560,22 @@ textarea.ai-form-ctrl { resize: vertical; min-height: 90px; font-family: inherit
       <button class="btn btn-ghost" onclick="_resolveAppConfirm(false)">取消</button>
       <button class="btn btn-primary" onclick="_resolveAppConfirm(true)">確定</button>
     </div>
+  </div>
+</div>
+
+<!-- v3.2.9 新增：管理者後台專用、可調整大小的彈出視窗（例如查看某位使用者的
+     完整資料內容、操作紀錄詳細內容）。只有管理者專用頁面（使用者資料／操作
+     紀錄）才會呼叫 openAdminModal()，一般使用者不會接觸到這個彈窗。
+     .admin-modal-box 上的 CSS resize:both 讓管理者可以直接拖曳視窗右下角
+     調整大小，不用另外寫拖曳邏輯。 -->
+<div id="admin-modal-overlay">
+  <div class="admin-modal-box">
+    <div class="admin-modal-head">
+      <h3 id="admin-modal-title">詳細內容</h3>
+      <button class="admin-modal-close" onclick="closeAdminModal()" aria-label="關閉">✕</button>
+    </div>
+    <div class="admin-modal-body" id="admin-modal-body"></div>
+    <p class="admin-modal-hint">拖曳視窗右下角可調整大小</p>
   </div>
 </div>
 
@@ -652,6 +694,12 @@ textarea.ai-form-ctrl { resize: vertical; min-height: 90px; font-family: inherit
          選單項目、都能點進去，但只有 ADMIN_EMAILS 名單內的信箱才看得到實際內容。
          v3.2.6 修改：同上，預設隱藏，只有管理者信箱登入後才顯示。 -->
     <button class="nav-single" id="nav-adminuserdata-btn" data-nav-section="adminuserdata" onclick="goSection('adminuserdata')" title="管理者專用：查看所有使用者的測驗與打卡資料" style="display:none;"><span aria-hidden="true">👥</span><span class="lbl">使用者資料</span></button>
+    <!-- v3.2.9 新增：操作紀錄（管理者專用）。不論使用者有無登入 Google 帳號都會
+         記錄的足跡（姓名／信箱／IP／瀏覽器／瀏覽下載刪除等操作），資料來源是
+         netlify/functions/audit-log.js，權限判斷方式跟上面兩個管理者專用選單
+         完全一樣（依 ADMIN_EMAILS 環境變數），前端這裡同樣預設隱藏、不會讓
+         一般使用者在選單上看到入口。 -->
+    <button class="nav-single" id="nav-adminauditlog-btn" data-nav-section="adminauditlog" onclick="goSection('adminauditlog')" title="管理者專用：查看所有操作足跡紀錄（含未登入訪客）" style="display:none;"><span aria-hidden="true">📋</span><span class="lbl">操作紀錄</span></button>
   </nav>
 
   <main class="content-area" id="app" tabindex="-1"></main>
@@ -1877,6 +1925,13 @@ const GENERATOR_EXAMPLES = {
 };
 
 const STORAGE_KEY_ABC = "commcoach:abc-log";
+/* v3.3.1 缺失修復：好友配對分析（compat）原本完全沒有對應的 STORAGE_KEY，
+   「💾 儲存我編輯後的內容」按鈕只是把 saveMsg 改成「已儲存」文字唬弄使用者，
+   實際上從未呼叫 storageSet，也沒有在 init() 還原——使用者辛苦輸入的朋友描述、
+   AI 分析內容，只要重新整理頁面就會整個消失，跟「已儲存」的訊息完全矛盾。
+   這裡補上真正的儲存鍵值，讓這個模組的行為跟其他模組（dashboard／values／
+   quiz／kindness…）一致：真的寫進雲端或本機儲存，並在下次開啟時還原。 */
+const STORAGE_KEY_COMPAT = "commcoach:compat";
 
 /* ===========================================================
    新增資料層：孫子兵法應用模組（原文為西元前古籍，屬公共領域，
@@ -1960,7 +2015,23 @@ function findAbcPatternCluster(entries) {
    v0.5.4 UI 渲染層（純 vanilla JS，無框架依賴，單一HTML檔可離線開啟）
 =========================================================== */
 
-const APP_VERSION = "v3.2.6";
+const APP_VERSION = "v3.3.1";
+/* ===========================================================
+   v3.3.1 缺失修復（本次更新重點）：
+   ①「教練回饋統計」重複計算：state.coach.votedKeys 只存在記憶體，重新整理
+     頁面後 feedbackLog 會照常還原、但 votedKeys 沒有跟著重建，導致已評過分
+     的建議又出現👍👎按鈕，重複點擊會讓「教練回饋次數」統計數字失真。
+     已在 init() 與 resetAllData() 補上重建／重設 votedKeys 的邏輯。
+   ②「好友配對分析」（compat）模組完全沒有對應的儲存鍵值：「💾 儲存我編輯
+     後的內容」按鈕只是把訊息改成「已儲存」，實際上從未寫入任何儲存空間，
+     也沒有被匯出／匯入備份涵蓋——使用者的描述與 AI 分析文字，重新整理頁面
+     就會整個消失，跟畫面上「已儲存」的訊息互相矛盾。已新增 STORAGE_KEY_COMPAT，
+     讓這個模組跟其他模組一樣，AI 生成完成、或按下儲存時都會真正寫入儲存
+     空間，並在下次開啟網站時自動還原、同時納入備份匯出／匯入／清除範圍。
+   ③「清除我的所有資料」原本沒有重設好友配對分析（compat）在畫面上的內容，
+     儲存空間清空了、但畫面上舊的對方描述與 AI 分析文字要重新整理頁面才會
+     消失，跟「清除」這個操作應該立即生效的預期不符。已補上重設邏輯。
+=========================================================== */
 /* v2.9 側邊選單重新排序（依《LifeCompass_側邊選單重新排序提案_v2.7.md》Option A 執行，
    使用者要求「重新排列將重要由上到下排序，讓使用者易懂明白為主」）：
    ①【DOM 排序】選單一級區塊從原本「首頁／打卡／人生羅盤／核心價值觀／依戀類型測驗／
@@ -2244,6 +2315,45 @@ async function serverStorageSet(key, value) {
   } catch (e) { return false; }
 }
 
+/* v3.2.9 新增：不論使用者「有沒有」用 Google 帳號登入，都會呼叫 trackEvent()
+   在後端留一筆足跡紀錄（對應 /netlify/functions/track.js），供管理者在
+   「操作紀錄」頁面查看，方便未來排查問題（查 bug）、追蹤異常操作用。
+   這裡刻意不對一般使用者顯示任何相關說明或提示文字——純粹是背景記錄，
+   呼叫失敗也完全靜默、不影響使用者原本正在做的事。
+   anonId：沒有登入時，用來辨識「是否為同一台裝置回訪」的匿名代碼，
+   產生一次後固定存在 localStorage，不含任何可識別個人身分的資訊。 */
+function getAnonId() {
+  try {
+    let id = window.localStorage.getItem("lc_anon_id");
+    if (!id) {
+      id = "anon_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
+      window.localStorage.setItem("lc_anon_id", id);
+    }
+    return id;
+  } catch (e) { return "anon_nostorage"; }
+}
+async function trackEvent(action, target, detail) {
+  try {
+    const token = await getIdentityToken();
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = "Bearer " + token;
+    await fetch("/.netlify/functions/track", {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify({ action: action, target: target || "", detail: detail || "", anonId: getAnonId() }),
+    });
+  } catch (e) { /* 安靜失敗，不影響使用者操作 */ }
+}
+/* 每個瀏覽器分頁只送一次「開啟網站」的足跡紀錄，避免每次畫面重繪都狂送。
+   跟登入紀錄的 recordLoginOnce 是分開的兩件事：這裡不管有沒有登入都會送。 */
+function trackVisitOnce() {
+  try {
+    if (sessionStorage.getItem("lc_visit_tracked_v1")) return;
+    sessionStorage.setItem("lc_visit_tracked_v1", "1");
+  } catch (e) { /* sessionStorage 不可用就每次都送，不影響功能，只是可能重複記錄 */ }
+  trackEvent("visit");
+}
+
 const LOCAL_STORAGE_PREFIX = "lc-local:";
 function localStorageAvailable() {
   try {
@@ -2357,6 +2467,22 @@ function _resolveAppConfirm(result) {
   const overlay = document.getElementById("confirm-modal-overlay");
   if (overlay) overlay.classList.remove("open");
   if (_appConfirmResolve) { _appConfirmResolve(result); _appConfirmResolve = null; }
+}
+
+/* v3.2.9 新增：管理者後台專用、可調整大小的彈出視窗開關函式。
+   titleText：視窗標題（純文字，內部會做escape）；bodyHtml：視窗內容（呼叫端
+   自行負責 escape，通常是已經處理過的 <pre> 區塊或表格）。 */
+function openAdminModal(titleText, bodyHtml) {
+  const overlay = document.getElementById("admin-modal-overlay");
+  const titleEl = document.getElementById("admin-modal-title");
+  const bodyEl = document.getElementById("admin-modal-body");
+  if (titleEl) titleEl.textContent = titleText || "詳細內容";
+  if (bodyEl) bodyEl.innerHTML = bodyHtml || "";
+  if (overlay) overlay.classList.add("open");
+}
+function closeAdminModal() {
+  const overlay = document.getElementById("admin-modal-overlay");
+  if (overlay) overlay.classList.remove("open");
 }
 
 /* v1.0.9 缺失修復④：重新生成 AI 草稿前，若已有內容（可能是使用者手動編輯過），先跟使用者確認再覆蓋。
@@ -2679,6 +2805,10 @@ const state = {
   adminLoginLog: { loading: false, loaded: false, error: "", records: null },
   /* v3.2.5 新增：管理者「使用者資料」頁面用的狀態（見 viewAdminUserDataSection / loadAdminUserData） */
   adminUserData: { loading: false, loaded: false, error: "", users: null, totalUserCount: 0, expandedUserId: null },
+  /* v3.2.9 新增：管理者「操作紀錄」頁面用的狀態（見 viewAdminAuditLogSection / loadAdminAuditLog）。
+     記錄不論使用者有無登入 Google 帳號都會留下的足跡（中文姓名／信箱／IP／瀏覽器／
+     瀏覽或下載或刪除資料等操作），供未來排查問題（查 bug）使用。 */
+  adminAuditLog: { loading: false, loaded: false, error: "", records: null, totalCount: 0 },
   /* v1.3.6 Phase 2 新增：企業／團隊 MVP（去識別化聚合，Beta） */
   teampulse: {
     teamCodeInput: "", teamCode: "", consentChecked: false,
@@ -2903,6 +3033,7 @@ function viewRoot() {
   else if (state.section === "checkin") inner = viewCheckinSection();
   else if (state.section === "adminloginlog") inner = viewAdminLoginLogSection();
   else if (state.section === "adminuserdata") inner = viewAdminUserDataSection();
+  else if (state.section === "adminauditlog") inner = viewAdminAuditLogSection();
   else inner = viewCoachSection();
   const home = state.section === "home" ? "" : quickHomeLink();
   return '<div class="shell">' + home + inner + "</div>";
@@ -4243,6 +4374,7 @@ const ALL_STORAGE_KEYS = [
   STORAGE_KEY_DASHBOARD, STORAGE_KEY_CHECKIN, STORAGE_KEY_CBT, STORAGE_KEY_CUSTOM, STORAGE_KEY_FEEDBACK, STORAGE_KEY_ABC,
   STORAGE_KEY_GRATITUDE, STORAGE_KEY_KINDNESS_ACTIONS, STORAGE_KEY_KINDNESS_AI, STORAGE_KEY_LKM, STORAGE_KEY_TEAMPULSE_MINE,
   STORAGE_KEY_GRATLETTER, STORAGE_KEY_STRENGTH, STORAGE_KEY_BPS,
+  STORAGE_KEY_COMPAT, /* v3.3.1 新增：好友配對分析原本沒被列入匯出／匯入／清除範圍，補上 */
 ].concat(QUIZ_ORDER.map((id) => QUIZ_STORAGE_PREFIX + id));
 
 async function exportAllData() {
@@ -4258,6 +4390,7 @@ async function exportAllData() {
   URL.revokeObjectURL(url);
   state.dashboard.dataMsg = "✓ 已匯出備份檔，請妥善保存。";
   rerender();
+  trackEvent("download_own_data");
 }
 
 function importAllData(file) {
@@ -4383,39 +4516,107 @@ function viewAdminUserDataSection() {
       const email = escapeHtml(u.email || "");
       const lastLogin = u.lastLoginTs ? new Date(u.lastLoginTs).toLocaleString("zh-TW", { hour12: false }) : "（無登入紀錄）";
       const itemCount = Object.keys(u.data || {}).length;
-      const isOpen = state.adminUserData.expandedUserId === u.userId;
-      const detail = isOpen
-        ? '<pre style="white-space:pre-wrap;word-break:break-all;background:var(--surface-2,#f4f4f4);' +
-          'padding:10px;border-radius:8px;font-size:11.5px;margin-top:8px;max-height:400px;overflow:auto;">' +
-          escapeHtml(JSON.stringify(u.data, null, 2)) + "</pre>"
-        : "";
+      const uidJs = JSON.stringify(u.userId);
       return '<tr><td style="padding:6px 10px;white-space:nowrap;">' + who + "</td>" +
         '<td style="padding:6px 10px;">' + email + "</td>" +
         '<td style="padding:6px 10px;white-space:nowrap;">' + escapeHtml(lastLogin) + "</td>" +
         '<td style="padding:6px 10px;">' + itemCount + " 筆</td>" +
-        '<td style="padding:6px 10px;"><button class="btn btn-ghost" style="padding:2px 10px;font-size:12px;" ' +
-        'onclick="toggleAdminUserDataDetail(' + JSON.stringify(u.userId) + ')">' + (isOpen ? "收合" : "查看內容") + "</button>" +
-        detail + "</td></tr>";
+        '<td style="padding:6px 10px;white-space:nowrap;">' +
+        '<button class="btn btn-ghost" style="padding:2px 10px;font-size:12px;margin-right:6px;" ' +
+        'onclick="viewAdminUserDataDetail(' + uidJs + ')">🔍 瀏覽</button>' +
+        '<button class="btn btn-ghost" style="padding:2px 10px;font-size:12px;margin-right:6px;" ' +
+        'onclick="downloadAdminUserData(' + uidJs + ')">⬇️ 下載</button>' +
+        '<button class="btn btn-ghost" style="padding:2px 10px;font-size:12px;border-color:#D9534F;color:#B33A3A;" ' +
+        'onclick="deleteAdminUserData(' + uidJs + ')">🗑️ 刪除</button>' +
+        "</td></tr>";
     }).join("");
     body = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
       '<thead><tr style="text-align:left;border-bottom:1px solid var(--border);">' +
       '<th style="padding:6px 10px;">名稱</th><th style="padding:6px 10px;">信箱</th>' +
       '<th style="padding:6px 10px;">最近登入</th><th style="padding:6px 10px;">資料筆數</th>' +
-      '<th style="padding:6px 10px;">內容</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+      '<th style="padding:6px 10px;">操作</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
       '<p class="faint" style="font-size:11.5px;margin-top:10px;">共 ' + (s.totalUserCount || s.users.length) +
-      ' 位使用者' + (s.users.length < (s.totalUserCount || 0) ? '（僅顯示前 ' + s.users.length + ' 位）' : '') + '。</p>';
+      ' 位使用者' + (s.users.length < (s.totalUserCount || 0) ? '（僅顯示前 ' + s.users.length + ' 位）' : '') +
+      '。「瀏覽」「下載」「刪除」都會留下操作紀錄，可在「📋 操作紀錄」頁面查看。</p>';
   }
 
   return '<div class="card"><h3>👥 使用者資料</h3>' +
-    '<p class="sub">查看每一位使用者已存到雲端的測驗結果、打卡紀錄與整合報告，僅限管理者（ADMIN_EMAILS）查看。</p>' +
+    '<p class="sub">查看、下載或刪除每一位使用者已存到雲端的測驗結果、打卡紀錄與整合報告，僅限管理者（ADMIN_EMAILS）查看。</p>' +
     '<div style="margin-bottom:14px;"><button class="btn btn-ghost" ' + (s.loading ? "disabled" : "") +
     ' onclick="loadAdminUserData()">🔄 重新整理</button></div>' + body + "</div>";
 }
 
-function toggleAdminUserDataDetail(userId) {
+/* v3.2.9 新增：「瀏覽」改成跳出可調整大小的彈窗（openAdminModal，定義在頁面
+   前段），不再像 v3.2.5～v3.2.8 那樣直接在表格列裡展開一大塊內容，長資料
+   看起來更清楚，管理者也能自行把視窗拉大。 */
+function viewAdminUserDataDetail(userId) {
   const s = state.adminUserData;
-  s.expandedUserId = (s.expandedUserId === userId) ? null : userId;
-  rerender();
+  const u = (s.users || []).find(function (x) { return x.userId === userId; });
+  if (!u) return;
+  const title = "使用者資料：" + (u.name || u.email || u.userId);
+  const bodyHtml = '<pre style="white-space:pre-wrap;word-break:break-all;background:var(--surface-light);' +
+    'padding:10px;border-radius:8px;font-size:11.5px;margin:0;">' +
+    escapeHtml(JSON.stringify(u.data, null, 2)) + "</pre>";
+  openAdminModal(title, bodyHtml);
+  trackEvent("admin_view_userdata", userId, "管理者於前端點開單一使用者詳細內容");
+}
+
+/* v3.2.9 新增：下載單一使用者的完整資料為 JSON 檔案，並在後端留一筆稽核紀錄
+   （admin-userdata.js 收到 ?download=1&userId=xxx 時會自動記錄，這裡另外
+   再送一次前端事件，方便從「操作紀錄」頁面看出這個動作是從哪個畫面觸發的）。 */
+async function downloadAdminUserData(userId) {
+  const s = state.adminUserData;
+  const u = (s.users || []).find(function (x) { return x.userId === userId; });
+  if (!u) return;
+  try {
+    const token = await getIdentityToken();
+    if (!token) { alert("尚未登入，無法下載。"); return; }
+    const res = await fetch("/.netlify/functions/admin-userdata?download=1&userId=" + encodeURIComponent(userId), {
+      headers: { Authorization: "Bearer " + token },
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(function () { return {}; });
+      alert(errData && errData.error ? errData.error : "下載失敗（" + res.status + "）");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "lifecompass-user-" + userId + ".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert("下載時發生連線問題，請稍後再試。");
+  }
+  trackEvent("admin_download_userdata", userId, "管理者於前端下載單一使用者資料");
+}
+
+/* v3.2.9 新增：刪除單一使用者的全部資料。用兩段式確認（跟清除自己資料一樣的
+   慣例），刪除成功後從清單移除並重新整理，避免管理者誤按一次就整批清空。 */
+async function deleteAdminUserData(userId) {
+  const s = state.adminUserData;
+  const u = (s.users || []).find(function (x) { return x.userId === userId; });
+  const who = u ? (u.name || u.email || userId) : userId;
+  if (!(await appConfirm("確定要刪除「" + who + "」的所有資料嗎？此動作無法復原。"))) return;
+  if (!(await appConfirm("再次確認：這會永久刪除該使用者的全部雲端資料，真的要繼續嗎？"))) return;
+
+  try {
+    const token = await getIdentityToken();
+    if (!token) { alert("尚未登入，無法刪除。"); return; }
+    const res = await fetch("/.netlify/functions/admin-userdata?userId=" + encodeURIComponent(userId), {
+      method: "DELETE",
+      headers: { Authorization: "Bearer " + token },
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok) {
+      alert(data && data.error ? data.error : "刪除失敗（" + res.status + "）");
+      return;
+    }
+    trackEvent("admin_delete_userdata", userId, "管理者於前端刪除單一使用者全部資料");
+    await loadAdminUserData();
+  } catch (e) {
+    alert("刪除時發生連線問題，請稍後再試。");
+  }
 }
 
 async function loadAdminUserData() {
@@ -4452,9 +4653,144 @@ async function loadAdminUserData() {
   rerender();
 }
 
+/* v3.2.9 新增：管理者「操作紀錄」頁面。資料來源是 netlify/functions/audit-log.js，
+   顯示 track.js（前端各處呼叫）以及 admin-userdata.js（伺服器端補寫）所留下的
+   足跡：不論使用者當時有沒有登入 Google 帳號，都有中文姓名／信箱（有登入才有值）、
+   IP、瀏覽器（User-Agent）、匿名裝置代碼（未登入才有值）、以及做了什麼操作
+   （開啟網站、瀏覽／下載／刪除自己的資料、管理者瀏覽／下載／刪除某位使用者的
+   資料）。用途是未來排查問題（查 bug）、追蹤異常操作，一般使用者完全看不到、
+   也不會被告知這個頁面的存在。 */
+const AUDIT_ACTION_LABELS = {
+  visit: "開啟網站",
+  view_own_data: "瀏覽自己的資料",
+  download_own_data: "下載自己的備份",
+  delete_own_data: "清除自己的所有資料",
+  admin_view_userdata: "管理者瀏覽使用者資料",
+  admin_download_userdata: "管理者下載使用者資料",
+  admin_delete_userdata: "管理者刪除使用者資料",
+};
+function auditActionLabel(action) { return AUDIT_ACTION_LABELS[action] || (action || "（未知操作）"); }
+
+/* 從 User-Agent 字串抓出一個簡短、人類看得懂的瀏覽器名稱＋平台，完整原始字串
+   仍保留在「查看完整內容」的彈窗裡，方便真的要查 bug 時看到最完整的資訊。 */
+function summarizeUserAgent(ua) {
+  if (!ua) return "（未知瀏覽器）";
+  let browser = "未知瀏覽器";
+  if (/Edg\//.test(ua)) browser = "Edge";
+  else if (/OPR\//.test(ua)) browser = "Opera";
+  else if (/Chrome\//.test(ua) && !/Chromium/.test(ua)) browser = "Chrome";
+  else if (/CriOS\//.test(ua)) browser = "Chrome (iOS)";
+  else if (/FxiOS\//.test(ua)) browser = "Firefox (iOS)";
+  else if (/Firefox\//.test(ua)) browser = "Firefox";
+  else if (/Safari\//.test(ua) && /Version\//.test(ua)) browser = "Safari";
+  let platform = "";
+  if (/iPhone|iPad|iPod/.test(ua)) platform = "iOS";
+  else if (/Android/.test(ua)) platform = "Android";
+  else if (/Windows/.test(ua)) platform = "Windows";
+  else if (/Macintosh|Mac OS X/.test(ua)) platform = "macOS";
+  else if (/Linux/.test(ua)) platform = "Linux";
+  return browser + (platform ? "・" + platform : "");
+}
+
+function viewAdminAuditLogSection() {
+  const s = state.adminAuditLog;
+  if (!s.loaded && !s.loading) loadAdminAuditLog();
+
+  let body;
+  if (s.loading) {
+    body = '<p class="body-text faint">正在讀取操作紀錄…</p>';
+  } else if (s.error) {
+    body = '<p class="body-text" style="color:#B33A3A;">' + escapeHtml(s.error) + "</p>";
+  } else if (!s.records || s.records.length === 0) {
+    body = '<p class="body-text faint">目前還沒有任何操作紀錄。</p>';
+  } else {
+    const rows = s.records.map(function (r, idx) {
+      const t = r.ts ? new Date(r.ts).toLocaleString("zh-TW", { hour12: false }) : "（未知時間）";
+      const who = escapeHtml(r.name || r.email || (r.anonId ? "匿名訪客" : "（未知使用者）"));
+      const email = escapeHtml(r.email || "");
+      const ip = escapeHtml(r.ip || "");
+      const browser = escapeHtml(summarizeUserAgent(r.userAgent));
+      const action = escapeHtml(auditActionLabel(r.action));
+      return '<tr><td style="padding:6px 10px;white-space:nowrap;">' + escapeHtml(t) + "</td>" +
+        '<td style="padding:6px 10px;">' + who + "</td>" +
+        '<td style="padding:6px 10px;">' + email + "</td>" +
+        '<td style="padding:6px 10px;white-space:nowrap;">' + ip + "</td>" +
+        '<td style="padding:6px 10px;white-space:nowrap;">' + browser + "</td>" +
+        '<td style="padding:6px 10px;white-space:nowrap;">' + action + "</td>" +
+        '<td style="padding:6px 10px;"><button class="btn btn-ghost" style="padding:2px 10px;font-size:12px;" ' +
+        'onclick="viewAdminAuditLogDetail(' + idx + ')">🔍 完整內容</button></td></tr>';
+    }).join("");
+    body = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
+      '<thead><tr style="text-align:left;border-bottom:1px solid var(--border);">' +
+      '<th style="padding:6px 10px;">時間</th><th style="padding:6px 10px;">姓名</th>' +
+      '<th style="padding:6px 10px;">信箱</th><th style="padding:6px 10px;">IP</th>' +
+      '<th style="padding:6px 10px;">瀏覽器</th><th style="padding:6px 10px;">操作</th>' +
+      '<th style="padding:6px 10px;">詳細</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+      '<p class="faint" style="font-size:11.5px;margin-top:10px;">共 ' + (s.totalCount || s.records.length) +
+      ' 筆紀錄' + (s.records.length < (s.totalCount || 0) ? '（僅顯示最新 ' + s.records.length + ' 筆）' : '') +
+      '，由新到舊排序。不論使用者當時有沒有登入 Google 帳號都會記錄，未登入時姓名／信箱欄位會是空的，' +
+      '但仍會留下 IP、瀏覽器與匿名裝置代碼，方便日後查 bug。</p>';
+  }
+
+  return '<div class="card"><h3>📋 操作紀錄</h3>' +
+    '<p class="sub">不論使用者有無登入 Google 帳號都會記錄的足跡（姓名／信箱／IP／瀏覽器／瀏覽下載刪除等操作），僅限管理者（ADMIN_EMAILS）查看，供未來排查問題使用。</p>' +
+    '<div style="margin-bottom:14px;"><button class="btn btn-ghost" ' + (s.loading ? "disabled" : "") +
+    ' onclick="loadAdminAuditLog()">🔄 重新整理</button></div>' + body + "</div>";
+}
+
+/* 用可調整大小的彈窗顯示單筆紀錄的完整原始內容（包含完整 User-Agent 字串、
+   target／detail 等欄位），方便真的要查 bug 時看到最完整的資訊，不會被表格
+   欄寬截斷。 */
+function viewAdminAuditLogDetail(idx) {
+  const s = state.adminAuditLog;
+  const r = (s.records || [])[idx];
+  if (!r) return;
+  const t = r.ts ? new Date(r.ts).toLocaleString("zh-TW", { hour12: false }) : "（未知時間）";
+  const title = auditActionLabel(r.action) + "・" + t;
+  const bodyHtml = '<pre style="white-space:pre-wrap;word-break:break-all;background:var(--surface-light);' +
+    'padding:10px;border-radius:8px;font-size:11.5px;margin:0;">' +
+    escapeHtml(JSON.stringify(r, null, 2)) + "</pre>";
+  openAdminModal(title, bodyHtml);
+}
+
+async function loadAdminAuditLog() {
+  const s = state.adminAuditLog;
+  s.loading = true; s.error = ""; rerender();
+
+  const user = getIdentityUser();
+  if (!user) {
+    s.loading = false; s.loaded = true;
+    s.error = "尚未登入，無法查看操作紀錄。";
+    rerender();
+    return;
+  }
+
+  try {
+    const token = await getIdentityToken();
+    const res = await fetch("/.netlify/functions/audit-log", {
+      headers: { Authorization: "Bearer " + token },
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok) {
+      s.error = data && data.error ? data.error : "讀取操作紀錄失敗（" + res.status + "）";
+      s.records = null;
+    } else {
+      s.records = (data && data.records) || [];
+      s.totalCount = (data && data.totalCount) || s.records.length;
+      s.error = "";
+    }
+  } catch (e) {
+    s.error = "連線失敗，請確認網路連線後重試。";
+    s.records = null;
+  }
+  s.loading = false; s.loaded = true;
+  rerender();
+}
+
 async function resetAllData() {
   if (!(await appConfirm("確定要清除「所有」測驗結果、打卡紀錄與教練資料嗎？此動作無法復原，建議先匯出備份。"))) return;
   if (!(await appConfirm("再次確認：這會清除全部資料且無法復原，真的要繼續嗎？"))) return;
+  trackEvent("delete_own_data");
   await withdrawAllTeamPulseSubmissions();
   for (const key of ALL_STORAGE_KEYS) { await storageSet(key, null); }
   state.compass.profile = null; state.compass.existingProfile = null;
@@ -4463,7 +4799,13 @@ async function resetAllData() {
   state.integration.report = null; state.integration.manualNote = ""; state.integration.generatedAt = null;
   state.dashboard.aiText = ""; state.dashboard.aiSource = ""; state.dashboard.manualNote = "";
   state.checkin.entries = []; state.checkin.mood = 0; state.checkin.energy = 0; state.checkin.note = "";
-  state.coach.customDict = []; state.coach.feedbackLog = []; state.coach.cbt.journal = []; state.coach.abc.entries = [];
+  state.coach.customDict = []; state.coach.feedbackLog = []; state.coach.votedKeys = new Set(); state.coach.cbt.journal = []; state.coach.abc.entries = [];
+  /* v3.3.1 缺失修復：清除全部資料時，好友配對分析（compat）的畫面內容
+     （對方描述、AI 分析文字）原本沒有被重設，儲存空間雖然清空了，但畫面
+     上舊的文字會一直留著，要重新整理頁面才會消失——跟「清除」這個動作
+     的預期結果不符，也是本次要修的「按鈕點了要重新整理才會更新」類問題
+     的其中一種情況。 */
+  state.coach.compat = { friendText: "", aiText: "", aiLoading: false, aiError: "", aiSource: "", manualNote: "", saveMsg: "" };
   state.coach.kindness = {
     gratitudeText: "", gratitudeEntries: [], gratSaveMsg: "",
     actionText: "", actionEntries: [], actSaveMsg: "",
@@ -5660,8 +6002,14 @@ async function generateCompatAnalysis() {
   }
   cp.aiLoading = false;
   rerender();
+  await storageSet(STORAGE_KEY_COMPAT, { friendText: cp.friendText, aiText: cp.aiText, aiSource: cp.aiSource });
 }
-function saveCompatNotes() { state.coach.compat.saveMsg = "已儲存（此分析僅保留在本次瀏覽中，重新整理後需重新產生）"; rerender(); }
+async function saveCompatNotes() {
+  const cp = state.coach.compat;
+  const ok = await storageSet(STORAGE_KEY_COMPAT, { friendText: cp.friendText, aiText: cp.aiText, aiSource: cp.aiSource });
+  cp.saveMsg = ok ? "已儲存，下次打開可直接查看" : "儲存失敗，但本次瀏覽仍可查看";
+  rerender();
+}
 
 /* ===========================================================
    v1.0.9 進階功能⑤ 溝通情境模擬練習
@@ -5917,6 +6265,20 @@ function syncChrome() {
     const streak = checkinStreak();
     setText("nav-checkin-lbl", "每日打卡" + (streak > 0 ? "（🔥" + streak + "）" : ""));
     if (typeof syncMoreTestsNavDone === "function") syncMoreTestsNavDone();
+    /* v3.2.8 缺失修復：v3.2.6 加入「登入紀錄／使用者資料」選單的顯示/隱藏判斷
+       （updateAdminNavVisibility，定義在頁尾登入流程的 script 裡，透過
+       window.__lcUpdateAdminNavVisibility 掛鉤對外開放），但當時只在剛登入、
+       或整頁重新整理觸發 netlifyIdentity 的 init／login 事件那一瞬間呼叫一次，
+       從來沒有真的接到 syncChrome() 這個「幾乎每次畫面重繪都會跑」的地方——
+       導致萬一那唯一一次判斷剛好沒抓對（例如 Google 外部登入後使用者資料
+       非同步更新的時機差、分頁喚醒等），管理選單就會永遠卡在隱藏狀態，
+       之後不管怎麼操作都不會自動修正，只能整頁登出重登「矇對時機」。
+       修復方式：每次 syncChrome() 執行時都用目前實際登入的身分（getIdentityUser()）
+       重新核對一次，不再只信任登入當下那一次結果，徹底變成自我修正，
+       不會再發生「明明是管理者、畫面卻不顯示」的狀況。 */
+    if (typeof window.__lcUpdateAdminNavVisibility === "function") {
+      window.__lcUpdateAdminNavVisibility(typeof getIdentityUser === "function" ? getIdentityUser() : null);
+    }
   } catch (err) {
     console.error("側邊選單同步發生未預期錯誤：", err);
   }
@@ -5934,8 +6296,22 @@ async function init() {
   state.attachment.existingResult = await storageGet(STORAGE_KEY_ATTACHMENT);
   state.coach.customDict = (await storageGet(STORAGE_KEY_CUSTOM)) || [];
   state.coach.feedbackLog = (await storageGet(STORAGE_KEY_FEEDBACK)) || [];
+  /* v3.3.1 缺失修復：votedKeys（用來判斷「這則建議是否已經評過分」、決定要不要
+     繼續顯示👍👎按鈕）原本只存在於記憶體中的 Set，重新整理頁面後一律變回空集合，
+     但 feedbackLog 本身卻會照常從雲端／本機還原——結果每次重新整理後，所有已經
+     評過分的項目又會重新顯示評分按鈕，使用者若又點一次，會把同一個 module|item
+     的重複紀錄再塞進 feedbackLog，導致「教練回饋次數」這個統計數字被重複計算、
+     越點越不準。這裡在還原 feedbackLog 之後，同步用還原出來的紀錄重建 votedKeys，
+     讓「已評過分」的狀態在重新整理後也能正確保留。 */
+  state.coach.votedKeys = new Set(state.coach.feedbackLog.map((e) => e.module + "|" + e.item));
   state.coach.cbt.journal = (await storageGet(STORAGE_KEY_CBT)) || [];
   state.coach.abc.entries = (await storageGet(STORAGE_KEY_ABC)) || [];
+  const savedCompat = await storageGet(STORAGE_KEY_COMPAT);
+  if (savedCompat) {
+    state.coach.compat.friendText = savedCompat.friendText || "";
+    state.coach.compat.aiText = savedCompat.aiText || "";
+    state.coach.compat.aiSource = savedCompat.aiSource || "";
+  }
   /* v1.1.5 Phase 1 新增：善意練習所資料載入 */
   state.coach.kindness.gratitudeEntries = (await storageGet(STORAGE_KEY_GRATITUDE)) || [];
   state.coach.kindness.actionEntries = (await storageGet(STORAGE_KEY_KINDNESS_ACTIONS)) || [];
@@ -6012,12 +6388,22 @@ if (typeof refreshAiStatusUi === "function") refreshAiStatusUi();
   var FRONTEND_ADMIN_EMAILS = ["felix670131@gmail.com"];
 
   function updateAdminNavVisibility(user) {
-    var email = (user && user.email) ? user.email.toLowerCase() : "";
+    /* v3.2.8：email 前後可能因為不同登入來源而帶到空白字元，比對前先 trim 一次，
+       避免明明信箱相同卻因為多一個空白就判斷失敗。 */
+    var email = (user && user.email) ? String(user.email).trim().toLowerCase() : "";
     var isAdmin = !!email && FRONTEND_ADMIN_EMAILS.indexOf(email) !== -1;
     var loginLogBtn = document.getElementById("nav-adminloginlog-btn");
     var userDataBtn = document.getElementById("nav-adminuserdata-btn");
+    var auditLogBtn = document.getElementById("nav-adminauditlog-btn");
     if (loginLogBtn) loginLogBtn.style.display = isAdmin ? "" : "none";
     if (userDataBtn) userDataBtn.style.display = isAdmin ? "" : "none";
+    if (auditLogBtn) auditLogBtn.style.display = isAdmin ? "" : "none";
+    /* v3.2.8 新增：只印在瀏覽器主控台（一般使用者不會打開，不影響體驗），
+       之後如果又遇到「登入了但選單沒顯示」，管理者自己按 F12 開 Console
+       就能立刻看到程式實際拿到的信箱、跟名單比對的結果，不用再靠猜的。 */
+    if (email) {
+      console.debug("[LifeCompass 管理選單檢查] 目前登入信箱：", email, "｜是否判定為管理者：", isAdmin, "｜管理者名單：", FRONTEND_ADMIN_EMAILS);
+    }
   }
   // 給主程式（goSection 等）在需要時也能重新檢查一次，例如手動刷新畫面時。
   window.__lcUpdateAdminNavVisibility = updateAdminNavVisibility;
@@ -6045,6 +6431,10 @@ if (typeof refreshAiStatusUi === "function") refreshAiStatusUi();
     if (chip && window.__lcUserName) chip.textContent = "你好，" + window.__lcUserName;
     updateAdminNavVisibility(user);
     recordLoginOnce(user);
+    /* v3.2.9 新增：不論這次是「已登入」還是「Identity 未部署、直接放行」的
+       匿名情況，都留一筆足跡紀錄（見 trackVisitOnce，主程式 script 裡定義），
+       供管理者未來查 bug、追蹤異常使用行為用，前端不會有任何提示文字。 */
+    if (typeof trackVisitOnce === "function") trackVisitOnce();
   }
 
   /* v3.2.3 新增，v3.2.4 修正：每次「這個瀏覽器分頁」確認登入身分後，記一筆登入

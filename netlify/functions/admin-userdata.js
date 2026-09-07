@@ -13,6 +13,20 @@
 // 權限判斷方式跟 login-logs.js 完全一樣：比對登入者 email 是否出現在
 // Netlify 環境變數 ADMIN_EMAILS 裡（逗號分隔），不是管理者一律回傳 403，
 // 不會拿到任何其他使用者的資料。
+//
+// v3.2.9 新增：
+//   ① GET 加上 ?download=1&userId=xxx 這兩個查詢參數時，改成只回傳「單一
+//      使用者」的完整資料，並附上 Content-Disposition 標頭讓瀏覽器直接
+//      當成檔案下載，不用再靠前端自己組 Blob（前端目前仍是用這種方式做
+//      下載，這支後端的下載模式是保留給未來或其他呼叫端使用的等價能力）。
+//   ② 新增 DELETE 方法：?userId=xxx 刪除該使用者「全部」資料，或加上
+//      ?item=xxx 只刪除該使用者的單一資料項目。刪除前一樣要通過上面的
+//      管理者權限檢查。
+//   ③ 不論是「瀏覽清單」「下載」「刪除」，這支程式都會在成功之後於伺服器端
+//      補寫一筆稽核紀錄到 lifecompass-audit-log（與 track.js 共用同一個
+//      store），紀錄管理者是誰、對哪個使用者做了什麼操作、什麼時間——
+//      就算前端程式碼被繞過或呼叫端沒有另外呼叫 track.js，後端這裡還是會
+//      留下紀錄，確保「使用者資料的瀏覽／下載／刪除」一定查得到軌跡。
 
 const { getStore, connectLambda } = require("@netlify/blobs");
 
@@ -23,7 +37,7 @@ exports.handler = async (event, context) => {
   // （原因同 data.js／login-logs.js 裡的說明，否則會出現 MissingBlobsEnvironmentError）。
   connectLambda(event);
 
-  if (event.httpMethod !== "GET") {
+  if (event.httpMethod !== "GET" && event.httpMethod !== "DELETE") {
     return jsonResponse(405, { error: "不支援的方法" });
   }
 
@@ -55,6 +69,67 @@ exports.handler = async (event, context) => {
     logStore = getStore("lifecompass-login-logs");
   } catch (err) {
     return jsonResponse(500, { error: "儲存空間初始化失敗：" + describeError(err) });
+  }
+
+  const qs = event.queryStringParameters || {};
+
+  // ---- DELETE：管理者刪除某位使用者的全部（或單一項目）資料 ----
+  if (event.httpMethod === "DELETE") {
+    const targetUserId = qs.userId;
+    if (!targetUserId) return jsonResponse(400, { error: "缺少 userId 參數" });
+
+    try {
+      const listResult = await dataStore.list({ prefix: targetUserId + "/" });
+      const keysToDelete = (listResult && listResult.blobs) ? listResult.blobs.map(function (b) { return b.key; }) : [];
+
+      if (qs.item) {
+        const singleKey = targetUserId + "/" + qs.item;
+        if (keysToDelete.indexOf(singleKey) === -1) {
+          return jsonResponse(404, { error: "找不到這筆資料項目。" });
+        }
+        await dataStore.delete(singleKey);
+        await writeAuditRecord(myEmail, user, event, "admin_delete_userdata", targetUserId, "刪除單一項目：" + qs.item);
+        return jsonResponse(200, { ok: true, deletedCount: 1 });
+      }
+
+      for (const key of keysToDelete) {
+        await dataStore.delete(key);
+      }
+      await writeAuditRecord(myEmail, user, event, "admin_delete_userdata", targetUserId, "刪除該使用者全部資料，共 " + keysToDelete.length + " 筆");
+      return jsonResponse(200, { ok: true, deletedCount: keysToDelete.length });
+    } catch (err) {
+      return jsonResponse(500, { error: "刪除使用者資料失敗：" + describeError(err) });
+    }
+  }
+
+  // ---- GET + download：管理者下載單一使用者的完整資料 ----
+  if (qs.download && qs.userId) {
+    const targetUserId = qs.userId;
+    try {
+      const listResult = await dataStore.list({ prefix: targetUserId + "/" });
+      const keys = (listResult && listResult.blobs) ? listResult.blobs.map(function (b) { return b.key; }) : [];
+      const dataObj = {};
+      for (const fullKey of keys) {
+        const itemName = fullKey.slice(targetUserId.length + 1);
+        try {
+          const raw = await dataStore.get(fullKey);
+          dataObj[itemName] = raw ? JSON.parse(raw) : null;
+        } catch (e) {
+          dataObj[itemName] = null;
+        }
+      }
+      await writeAuditRecord(myEmail, user, event, "admin_download_userdata", targetUserId, "管理者下載使用者資料");
+      return {
+        statusCode: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Disposition": "attachment; filename=\"lifecompass-user-" + encodeURIComponent(targetUserId) + ".json\"",
+        },
+        body: JSON.stringify({ userId: targetUserId, exportedAt: new Date().toISOString(), data: dataObj }, null, 2),
+      };
+    } catch (err) {
+      return jsonResponse(500, { error: "下載使用者資料失敗：" + describeError(err) });
+    }
   }
 
   // 第一步：把登入紀錄整理成 userId -> { email, name, lastLoginTs } 的對照表，
@@ -130,11 +205,44 @@ exports.handler = async (event, context) => {
       });
     }
 
+    // v3.2.9 新增：管理者打開「使用者資料」清單這件事本身也留一筆稽核紀錄
+    // （不帶特定 target，代表「瀏覽了整份清單」，不是針對單一使用者）。
+    await writeAuditRecord(myEmail, user, event, "admin_view_userdata", "", "管理者開啟使用者資料清單，共 " + Object.keys(grouped).length + " 位使用者");
+
     return jsonResponse(200, { users: users, totalUserCount: Object.keys(grouped).length });
   } catch (err) {
     return jsonResponse(500, { error: "讀取使用者資料失敗：" + describeError(err) });
   }
 };
+
+// v3.2.9 新增：把「管理者做了什麼操作」寫進 lifecompass-audit-log
+// （跟 track.js 寫入同一個 store，讓「操作紀錄」頁面能統一顯示）。
+// 這裡的失敗一律吞掉，絕不能因為稽核紀錄寫不進去，就連帶讓管理者原本要做的
+// 瀏覽／下載／刪除操作也失敗。
+async function writeAuditRecord(myEmail, user, event, action, target, detail) {
+  try {
+    const { getStore: getStoreInner } = require("@netlify/blobs");
+    const auditStore = getStoreInner("lifecompass-audit-log");
+    const meta = (user && user.user_metadata) || {};
+    const record = {
+      ts: new Date().toISOString(),
+      action: action,
+      target: target || "",
+      detail: detail || "",
+      anonId: "",
+      userId: (user && user.sub) || "",
+      name: meta.full_name || meta.name || "",
+      email: myEmail || (user && user.email) || "",
+      provider: "admin-panel",
+      ip: (event.headers && (event.headers["x-nf-client-connection-ip"] || event.headers["client-ip"])) || "",
+      userAgent: (event.headers && event.headers["user-agent"]) || "",
+    };
+    const key = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    await auditStore.set(key, JSON.stringify(record));
+  } catch (err) {
+    // 安靜失敗，不影響主要操作。
+  }
+}
 
 function jsonResponse(statusCode, bodyObj) {
   return {
